@@ -1,35 +1,25 @@
+rm(list = ls())
+
 install.packages("readxl")
 library(readxl)
 
 install.packages("tidyverse")
-pak::pkg_system_requirements("tidyverse")
-install.packages("tidyverse")
 library(tidyverse) 
-
 library(tidyr)
-
-library(tidyverse)   
-
-library("readxl")
 
 install.packages("data.table")
 library(data.table)
-
 library(dplyr)
-
 library(tibble)
 
 library(parallel)
-
 library(ggplot2)
-
 library(lubridate)
 
 install.packages("reshape2")
 library(reshape2)
 
 library(stringr)
-
 library(readr)
 install.packages("openxlsx")
 library(openxlsx)
@@ -51,7 +41,6 @@ library(patchwork)
 
 library(RColorBrewer)
 
-
 install.packages("doParallel")
 library(doParallel)
 
@@ -60,9 +49,11 @@ install.packages("xlsx")
 library("xlsx")
 
 install.packages("grf")
-devtools::install_github("grf-labs/grf", subdir = "r-package/grf")
 library(grf)
 
+library(plyr)
+install.packages("MatchIt")
+library(MatchIt)
 
 
 df_NAWS <- read.csv("E:/MelissaFranco/Data/Orginal/nawscrtdvars1db20_CSV.csv")
@@ -82,9 +73,7 @@ df_NAWS_clean <- df_NAWS[!df_NAWS$L01 %in% c(4, 5, 7, 8, 96) & !is.na(df_NAWS$L0
 saveRDS(df_NAWS_clean, file = "E:/MelissaFranco/Data/Jackie/NAWS_clean_2020.Rds")
 
 
-library(plyr)
-install.packages("MatchIt")
-library(MatchIt)
+
 ######### Citizen vs. PR (C vs PR) #########
 # Subset to Citizens (1,2) and PRs (3)
 df_C_PR <- df_NAWS_clean[df_NAWS_clean$L01 %in% c(1, 2, 3), ]
@@ -156,15 +145,15 @@ currstat_PR_UD_CHECK <- as.data.frame(currstat_PR_UD)
 # Save the forked dataset
 saveRDS(df_PR_UD, file = "E:/MelissaFranco/Data/Jackie/df_PR_UD.rds")
 
-#==================================
-colnames_to_check <- c("currstat_C_PR", "A03", "REALage", "FAMPOV", "A21a", "FOREIGNB", "A09", "PWTYCRD")
+#================================== 
+### Citizen(C) vs. PR ###
+colnames_to_check <- c("currstat_C_PR", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
 summary(df_C_PR[, colnames_to_check])
 
 ###PSM: no matching(raw data)###
 #clean up forked dataset
 df_C_PR_clean <- df_C_PR[complete.cases(df_C_PR[, colnames_to_check]), ]
 
-library(MatchIt)
 #C & PR
 df_C_PR <- readRDS("E:/MelissaFranco/Data/Jackie/df_C_PR.rds")
 NM_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
@@ -172,6 +161,9 @@ NM_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + A21a + A09 + PWT
                   method = NULL, #no matching
                   distance = "glm")
 summary(NM_C_PR.out)
+
+#Covariates: A03 Gender, REALage age, FAMPOV fam income below pov level, 
+#A21a having health insurance, A09 highest grade in school, PWTYCRD weight used when working with several years of data
 
 #PSM: Nearest-neighbor (1:1)
 M_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
@@ -196,26 +188,141 @@ fit_C_PR <- lm(NQ01x ~ currstat_C_PR, data = df_C_PR_matched)
 summary(fit_C_PR)
 
 ###Visualizing Graphs
-library(ggplot2)
-library(dplyr)
-
 # Sample outcome summary
-df_C_PR_matched <- match.data(M_C_PR.out)  # Make sure you ran this before
 df_C_PR_matched$group <- ifelse(df_C_PR_matched$currstat_C_PR == 1, "Citizen", "PR")
+
+#table(df_C_PR_matched$group, useNA = "ifany")
 
 # Healthcare utilization(hu)
 hu_summary <- df_C_PR_matched %>%
-  group_by(group) %>%
-  summarize(mean_hu = mean(NQ01x, na.rm = TRUE))
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+
+#print(hu_summary)
 
 ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
   geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +  # Adjust `vjust` and `size` as needed
   labs(title = "Healthcare Utilization: Citizens vs PRs",
        x = "", y = "Sample Mean (%)") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
   theme_minimal()
 
 
+#================================== 
+### Citizen(C) vs. Undocumented ###
+colnames_to_check <- c("currstat_C_UD", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
+summary(df_C_UD[, colnames_to_check])
+
+# Clean up forked dataset
+df_C_UD_clean <- df_C_UD[complete.cases(df_C_UD[, colnames_to_check]), ]
+
+# Load data
+df_C_UD <- readRDS("E:/MelissaFranco/Data/Jackie/df_C_UD.rds")
+
+# PSM: No matching (raw data)
+NM_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+                       data = df_C_UD_clean,
+                       method = NULL,
+                       distance = "glm")
+summary(NM_C_UD.out)
+
+# PSM: Nearest-neighbor (1:1)
+M_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+                      data = df_C_UD_clean,
+                      method = "nearest",
+                      distance = "glm",
+                      estimand = "ATT")
+summary(M_C_UD.out)
+
+# Plot balance and PS distribution
+plot(summary(M_C_UD.out), var.order = "unmatched")
+plot(M_C_UD.out, type = "hist")
+plot(M_C_UD.out, type = "jitter")
+
+# Extract matched data
+df_C_UD_matched <- match.data(M_C_UD.out)
+
+# Post-matching regression
+fit_C_UD <- lm(NQ01x ~ currstat_C_UD, data = df_C_UD_matched)
+summary(fit_C_UD)
+
+# Add group label
+df_C_UD_matched$group <- ifelse(df_C_UD_matched$currstat_C_UD == 1, "Citizen", "Undocumented")
+
+# Summary + Plot
+hu_summary <- df_C_UD_matched %>%
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+
+ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +
+  labs(title = "Healthcare Utilization: Citizens vs Undocumented",
+       x = "", y = "Sample Mean (%)") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
+  theme_minimal()
+
+
+#================================== 
+### PR vs. Undocumented(UD) ###
+colnames_to_check <- c("currstat_PR_UD", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
+summary(df_PR_UD[, colnames_to_check])
+
+# Clean up forked dataset
+df_PR_UD_clean <- df_PR_UD[complete.cases(df_PR_UD[, colnames_to_check]), ]
+
+# Load data
+df_PR_UD <- readRDS("E:/MelissaFranco/Data/Jackie/df_PR_UD.rds")
+
+# PSM: No matching (raw data)
+NM_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+                        data = df_PR_UD_clean,
+                        method = NULL,
+                        distance = "glm")
+summary(NM_PR_UD.out)
+
+# PSM: Nearest-neighbor (1:1)
+M_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+                       data = df_PR_UD_clean,
+                       method = "nearest",
+                       distance = "glm",
+                       estimand = "ATT")
+summary(M_PR_UD.out)
+
+# Plot balance and PS distribution
+plot(summary(M_PR_UD.out), var.order = "unmatched")
+plot(M_PR_UD.out, type = "hist")
+plot(M_PR_UD.out, type = "jitter")
+
+# Extract matched data
+df_PR_UD_matched <- match.data(M_PR_UD.out)
+
+# Post-matching regression
+fit_PR_UD <- lm(NQ01x ~ currstat_PR_UD, data = df_PR_UD_matched)
+summary(fit_PR_UD)
+
+# Add group label
+df_PR_UD_matched$group <- ifelse(df_PR_UD_matched$currstat_PR_UD == 1, "PR", "Undocumented")
+
+# Summary + Plot
+hu_summary <- df_PR_UD_matched %>%
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+
+ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +
+  labs(title = "Healthcare Utilization: PRs vs Undocumented",
+       x = "", y = "Sample Mean (%)") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
+  theme_minimal()
 
 
 
