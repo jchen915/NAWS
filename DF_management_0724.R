@@ -1,60 +1,48 @@
 rm(list = ls())
 
 install.packages("readxl")
-library(readxl)
-
 install.packages("tidyverse")
+install.packages("data.table")
+install.packages("reshape2")
+install.packages("openxlsx")
+install.packages("writexl")
+install.packages("assertthat")
+install.packages("ggthemes")
+install.packages("plotrix")
+install.packages("ggpubr")
+install.packages("patchwork")
+install.packages("doParallel")
+install.packages("xlsx")
+install.packages("grf")
+install.packages("MatchIt")
+
+library(readxl)
 library(tidyverse) 
 library(tidyr)
-
-install.packages("data.table")
 library(data.table)
+library(plyr)
 library(dplyr)
 library(tibble)
-
 library(parallel)
 library(ggplot2)
 library(lubridate)
-
-install.packages("reshape2")
 library(reshape2)
-
 library(stringr)
 library(readr)
-install.packages("openxlsx")
 library(openxlsx)
-install.packages("writexl")
 library(writexl)
-install.packages("assertthat")
 library(assertthat)
-
-install.packages("ggthemes")
 library(ggthemes)
-install.packages("plotrix")
 library(plotrix)
-install.packages("ggpubr")
 library(ggpubr)
-
 library(gridExtra)
-install.packages("patchwork")
 library(patchwork)
-
 library(RColorBrewer)
-
-install.packages("doParallel")
 library(doParallel)
-
 library(foreach)
-install.packages("xlsx")
-library("xlsx")
-
-install.packages("grf")
+#library(xlsx)
 library(grf)
-
-library(plyr)
-install.packages("MatchIt")
 library(MatchIt)
-
 
 df_NAWS <- read.csv("E:/MelissaFranco/Data/Orginal/nawscrtdvars1db20_CSV.csv")
 
@@ -62,7 +50,7 @@ view(head(df_NAWS))
 saveRDS(df_NAWS, file = "E:/MelissaFranco/Data/Jackie/NAWS_2020.Rds")
 
 #check for variables
-c("REALAGE") %in% names(df_NAWS)
+c("G04J") %in% names(df_NAWS)
 #search for relevant variables
 grep("age", names(df_NAWS), value = TRUE)
 #examine specific variable
@@ -145,9 +133,11 @@ currstat_PR_UD_CHECK <- as.data.frame(currstat_PR_UD)
 # Save the forked dataset
 saveRDS(df_PR_UD, file = "E:/MelissaFranco/Data/Jackie/df_PR_UD.rds")
 
-#================================== 
+
+
+#==============Public Health Clinics(PHCs)==================== 
 ### Citizen(C) vs. PR ###
-colnames_to_check <- c("currstat_C_PR", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
+colnames_to_check <- c("currstat_C_PR", "A03", "REALage", "FAMPOV", "PWTYCRD")
 summary(df_C_PR[, colnames_to_check])
 
 ###PSM: no matching(raw data)###
@@ -156,7 +146,7 @@ df_C_PR_clean <- df_C_PR[complete.cases(df_C_PR[, colnames_to_check]), ]
 
 #C & PR
 df_C_PR <- readRDS("E:/MelissaFranco/Data/Jackie/df_C_PR.rds")
-NM_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+NM_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + PWTYCRD,
                   data = df_C_PR_clean,
                   method = NULL, #no matching
                   distance = "glm")
@@ -166,7 +156,7 @@ summary(NM_C_PR.out)
 #A21a having health insurance, A09 highest grade in school, PWTYCRD weight used when working with several years of data
 
 #PSM: Nearest-neighbor (1:1)
-M_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+M_C_PR.out <- matchit(currstat_C_PR ~ A03 + REALage + FAMPOV + PWTYCRD,
                  data = df_C_PR_clean,
                  method = "nearest",
                  distance = "glm",
@@ -184,7 +174,9 @@ plot(M_C_PR.out, type = "jitter")  # For overlap visualization
 df_C_PR_matched <- match.data(M_C_PR.out)
 
 #post-matching regression, outcome: 
-fit_C_PR <- lm(NQ01x ~ currstat_C_PR, data = df_C_PR_matched)
+#fit_C_PR <- lm(NQ01x ~ currstat_C_PR, data = df_C_PR_matched)
+fit_C_PR <- lm(G04I ~ currstat_C_PR, data = df_C_PR_matched)
+#fit_C_PR <- lm(G04J ~ currstat_C_PR, data = df_C_PR_matched)
 summary(fit_C_PR)
 
 ###Visualizing Graphs
@@ -194,26 +186,27 @@ df_C_PR_matched$group <- ifelse(df_C_PR_matched$currstat_C_PR == 1, "Citizen", "
 #table(df_C_PR_matched$group, useNA = "ifany")
 
 # Healthcare utilization(hu)
-hu_summary <- df_C_PR_matched %>%
+phc_summary <- df_C_PR_matched %>%
   dplyr::group_by(group) %>%
-  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+#  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+  dplyr::summarize(mean_phc = mean(G04I, na.rm = TRUE), .groups = "drop")
 
+  
 #print(hu_summary)
-
-ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
+ggplot(phc_summary, aes(x = group, y = mean_phc, fill = group)) +
   geom_bar(stat = "identity", width = 0.6) +
-  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+  geom_text(aes(label = scales::percent(mean_phc, accuracy = 0.1)),
             vjust = -0.5, size = 4.5) +  # Adjust `vjust` and `size` as needed
-  labs(title = "Healthcare Utilization: Citizens vs PRs",
+#  labs(title = "Healthcare Utilization: Citizens vs PRs",
+  labs(title = "Public Health Clinics: Citizens vs PRs",
        x = "", y = "Sample Mean (%)") +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
+                     limits = c(0, max(phc_summary$mean_phc) + 0.1)) +
   theme_minimal()
 
 
-#================================== 
-### Citizen(C) vs. Undocumented ###
-colnames_to_check <- c("currstat_C_UD", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
+### PHCs: Citizen(C) vs. Undocumented(UD) ###
+colnames_to_check <- c("currstat_C_UD", "A03", "REALage", "FAMPOV", "PWTYCRD")
 summary(df_C_UD[, colnames_to_check])
 
 # Clean up forked dataset
@@ -223,14 +216,14 @@ df_C_UD_clean <- df_C_UD[complete.cases(df_C_UD[, colnames_to_check]), ]
 df_C_UD <- readRDS("E:/MelissaFranco/Data/Jackie/df_C_UD.rds")
 
 # PSM: No matching (raw data)
-NM_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+NM_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + PWTYCRD,
                        data = df_C_UD_clean,
                        method = NULL,
                        distance = "glm")
 summary(NM_C_UD.out)
 
 # PSM: Nearest-neighbor (1:1)
-M_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+M_C_UD.out <- matchit(currstat_C_UD ~ A03 + REALage + FAMPOV + PWTYCRD,
                       data = df_C_UD_clean,
                       method = "nearest",
                       distance = "glm",
@@ -246,31 +239,34 @@ plot(M_C_UD.out, type = "jitter")
 df_C_UD_matched <- match.data(M_C_UD.out)
 
 # Post-matching regression
-fit_C_UD <- lm(NQ01x ~ currstat_C_UD, data = df_C_UD_matched)
+#fit_C_UD <- lm(NQ01x ~ currstat_C_UD, data = df_C_UD_matched)
+fit_C_UD <- lm(G04I ~ currstat_C_UD, data = df_C_UD_matched)
 summary(fit_C_UD)
 
 # Add group label
 df_C_UD_matched$group <- ifelse(df_C_UD_matched$currstat_C_UD == 1, "Citizen", "Undocumented")
 
 # Summary + Plot
-hu_summary <- df_C_UD_matched %>%
+phc_summary <- df_C_UD_matched %>%
   dplyr::group_by(group) %>%
-  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+# dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+  dplyr::summarize(mean_phc = mean(G04I, na.rm = TRUE), .groups = "drop")
 
-ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
+
+ggplot(phc_summary, aes(x = group, y = mean_phc, fill = group)) +
   geom_bar(stat = "identity", width = 0.6) +
-  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+  geom_text(aes(label = scales::percent(mean_phc, accuracy = 0.1)),
             vjust = -0.5, size = 4.5) +
-  labs(title = "Healthcare Utilization: Citizens vs Undocumented",
-       x = "", y = "Sample Mean (%)") +
+# labs(title = "Healthcare Utilization: Citizens vs Undocumented",
+  labs(title = "Public Health Clinics: Citizens vs Undocumented",
+         x = "", y = "Sample Mean (%)") +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
+                     limits = c(0, max(phc_summary$mean_phc) + 0.1)) +
   theme_minimal()
 
 
-#================================== 
-### PR vs. Undocumented(UD) ###
-colnames_to_check <- c("currstat_PR_UD", "A03", "REALage", "FAMPOV", "A21a", "A09", "PWTYCRD")
+### PHCs: PR vs. Undocumented(UD) ###
+colnames_to_check <- c("currstat_PR_UD", "A03", "REALage", "FAMPOV", "PWTYCRD")
 summary(df_PR_UD[, colnames_to_check])
 
 # Clean up forked dataset
@@ -280,14 +276,14 @@ df_PR_UD_clean <- df_PR_UD[complete.cases(df_PR_UD[, colnames_to_check]), ]
 df_PR_UD <- readRDS("E:/MelissaFranco/Data/Jackie/df_PR_UD.rds")
 
 # PSM: No matching (raw data)
-NM_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+NM_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + PWTYCRD,
                         data = df_PR_UD_clean,
                         method = NULL,
                         distance = "glm")
 summary(NM_PR_UD.out)
 
 # PSM: Nearest-neighbor (1:1)
-M_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + A21a + A09 + PWTYCRD,
+M_PR_UD.out <- matchit(currstat_PR_UD ~ A03 + REALage + FAMPOV + PWTYCRD,
                        data = df_PR_UD_clean,
                        method = "nearest",
                        distance = "glm",
@@ -303,30 +299,114 @@ plot(M_PR_UD.out, type = "jitter")
 df_PR_UD_matched <- match.data(M_PR_UD.out)
 
 # Post-matching regression
-fit_PR_UD <- lm(NQ01x ~ currstat_PR_UD, data = df_PR_UD_matched)
+fit_PR_UD <- lm(G04I ~ currstat_PR_UD, data = df_PR_UD_matched)
 summary(fit_PR_UD)
 
 # Add group label
 df_PR_UD_matched$group <- ifelse(df_PR_UD_matched$currstat_PR_UD == 1, "PR", "Undocumented")
 
 # Summary + Plot
-hu_summary <- df_PR_UD_matched %>%
+phc_summary <- df_PR_UD_matched %>%
   dplyr::group_by(group) %>%
-  dplyr::summarize(mean_hu = mean(NQ01x, na.rm = TRUE), .groups = "drop")
+  dplyr::summarize(mean_phc = mean(G04I, na.rm = TRUE), .groups = "drop")
 
-ggplot(hu_summary, aes(x = group, y = mean_hu, fill = group)) +
+ggplot(phc_summary, aes(x = group, y = mean_phc, fill = group)) +
   geom_bar(stat = "identity", width = 0.6) +
-  geom_text(aes(label = scales::percent(mean_hu, accuracy = 0.1)),
+  geom_text(aes(label = scales::percent(mean_phc, accuracy = 0.1)),
             vjust = -0.5, size = 4.5) +
-  labs(title = "Healthcare Utilization: PRs vs Undocumented",
+  labs(title = "Public Health Clinics: PRs vs UDs",
        x = "", y = "Sample Mean (%)") +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     limits = c(0, max(hu_summary$mean_hu) + 0.1)) +
+                     limits = c(0, max(phc_summary$mean_phc) + 0.1)) +
   theme_minimal()
 
 
 
-#-----------------
+
+#============= Medicaid(mc) ===================== 
+### Medicaid(mc): Citizen(C) vs. PR ###
+#post-matching regression, outcome: 
+fit_C_PR <- lm(G04J ~ currstat_C_PR, data = df_C_PR_matched)
+summary(fit_C_PR)
+#G04J: Within the last two years has anyone in your household 
+#received benefits from or used the services of any of the 
+#following social programs? Medicaid
+
+###Visualizing Graphs
+# Sample outcome summary
+df_C_PR_matched$group <- ifelse(df_C_PR_matched$currstat_C_PR == 1, "Citizen", "PR")
+
+#table(df_C_PR_matched$group, useNA = "ifany")
+
+# Medicaid(mc)
+mc_summary <- df_C_PR_matched %>%
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_mc = mean(G04J, na.rm = TRUE), .groups = "drop")
+
+#print(mc_summary)
+ggplot(mc_summary, aes(x = group, y = mean_mc, fill = group)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_mc, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +  # Adjust `vjust` and `size` as needed
+  labs(title = "Medicaid: Citizens vs PRs",
+       x = "", y = "Sample Mean (%)") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(mc_summary$mean_mc) + 0.1)) +
+  theme_minimal()
+
+
+### Medicaid: Citizen(C) vs. Undocumented(UD) ###
+# Post-matching regression
+fit_C_UD <- lm(G04J ~ currstat_C_UD, data = df_C_UD_matched)
+summary(fit_C_UD)
+
+# Add group label
+df_C_UD_matched$group <- ifelse(df_C_UD_matched$currstat_C_UD == 1, "Citizen", "Undocumented")
+
+# Summary + Plot
+mc_summary <- df_C_UD_matched %>%
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_mc = mean(G04J, na.rm = TRUE), .groups = "drop")
+
+
+ggplot(mc_summary, aes(x = group, y = mean_mc, fill = group)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_mc, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +
+  labs(title = "Medicaid: Citizens vs Undocumented",
+       x = "", y = "Sample Mean (%)") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(mc_summary$mean_mc) + 0.1)) +
+  theme_minimal()
+
+
+### Medicaid: PR vs. Undocumented(UD) ###
+# Re-run Post-matching regression for outcome Medicaid G04J
+fit_PR_UD <- lm(G04J ~ currstat_PR_UD, data = df_PR_UD_matched)
+summary(fit_PR_UD)
+
+# Add group label
+df_PR_UD_matched$group <- ifelse(df_PR_UD_matched$currstat_PR_UD == 1, "PR", "Undocumented")
+
+# Summary + Plot
+mc_summary <- df_PR_UD_matched %>%
+  dplyr::group_by(group) %>%
+  dplyr::summarize(mean_mc = mean(G04J, na.rm = TRUE), .groups = "drop")
+
+ggplot(mc_summary, aes(x = group, y = mean_mc, fill = group)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(mean_mc, accuracy = 0.1)),
+            vjust = -0.5, size = 4.5) +
+  labs(title = "Medicaid: PRs vs UDs",
+       x = "", y = "Sample Mean (%)") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, max(mc_summary$mean_mc) + 0.1)) +
+  theme_minimal()
+
+
+
+
+#--------END-----------
 #Citizen(1+2) vs. PR(3)
 df_NAWS_clean$currstat_C_PR <- mapvalues(df_NAWS_clean$L01,
                                          from = c(1, 2, 3, 6),
